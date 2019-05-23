@@ -7,6 +7,8 @@
     }
 
     global.path = {
+        src: "src/",
+        assets: "assets/",
         tmp: "__tmp/",
         dist: "__dist/"
     };
@@ -14,6 +16,26 @@
     global.Func = new function () {
         const requireModule = (m) => require(modulePath + m);
 
+        /**
+
+         "concat": "^1.0.3",
+         "create-file": "^1.0.1",
+         "del": "^4.1.1",
+         "eslint": "^5.16.0",
+         "fs-extra": "^8.0.1",
+         "glob-concat": "^1.0.1",
+         "html-minifier": "^4.0.0",
+         "jsonminify": "^0.4.1",
+         "node-sass": "^4.12.0",
+         "npm-check-updates": "^3.1.9",
+         "read-file": "^0.2.0",
+         "request": "^2.88.0",
+         "terser": "^4.0.0",
+         "zip-dir": "^1.0.2"
+
+         *
+         * @type {object}
+         */
         const module = {
             find: requireModule("glob-concat"),
             concat: requireModule("concat"),
@@ -21,10 +43,12 @@
             remove: requireModule("del"),
             createFile: requireModule("create-file"),
             minifyHtml: requireModule("html-minifier").minify,
+            minifyJson: requireModule("jsonminify"),
             terser: requireModule("terser"),
             sass: requireModule("node-sass"),
             copy: requireModule("fs-extra").copy,
             request: requireModule("request"),
+            zip: requireModule("zip-dir"),
             exec: require("child_process").exec
         };
 
@@ -85,7 +109,7 @@
                         if (matches[i]) {
                             const info = {
                                 file: matches[i],
-                                fileName: matches[i].replace(new RegExp("^(" + path.tmp + ")", "i"), "")
+                                fileName: matches[i].replace(new RegExp("^(" + path.src + "|" + path.tmp + ")", "i"), "")
                             };
 
                             if (flatten) {
@@ -135,13 +159,32 @@
         };
 
         /**
+         * Creates a zip file containing all files of the given directory
+         *
+         * @param {string} dir
+         * @param {string} dest
+         * @returns {Promise}
+         */
+        this.zipDirectory = (dir, dest) => {
+            return new Promise((resolve, reject) => {
+                module.zip(dir, {saveTo: dest}, (err) => {
+                    if (err) {
+                        reject();
+                    } else {
+                        resolve();
+                    }
+                });
+            });
+        };
+
+        /**
          * Removes the content of the tmp and dist directory
          *
          * @returns {Promise}
          */
         this.cleanPre = () => {
             return this.measureTime((resolve) => {
-                this.remove([path.tmp + "*", path.dist + "*"]).then(() => {
+                this.remove([path.tmp + "*", path.dist + "*", "*.zip"]).then(() => {
                     return this.createFile(path.tmp + "info.txt", new Date().toISOString());
                 }).then(() => {
                     resolve();
@@ -326,10 +369,17 @@
                                 });
                                 break;
                             }
+                            case "json": {
+                                content = module.minifyJson(content);
+                                break;
+                            }
                             case "js": {
                                 const result = module.terser.minify(content, {
                                     output: {
-                                        preamble: "/*! (c) " + process.env.npm_package_author_name + " */"
+                                        preamble: "/*! (c) " + process.env.npm_package_author_name + " under " + process.env.npm_package_license + " */"
+                                    },
+                                    mangle: {
+                                        reserved: ["jsu", "chrome"]
                                     }
                                 });
                                 if (result.error) {
@@ -342,7 +392,7 @@
                                 const result = module.sass.renderSync({
                                     data: content,
                                     outputStyle: "compressed",
-                                    includePaths: ["assets/scss"]
+                                    includePaths: [path.src + "scss", path.assets + "scss"]
                                 });
                                 content = result.css;
                                 info.fileName = info.fileName.replace(/\.scss$/, ".css");
