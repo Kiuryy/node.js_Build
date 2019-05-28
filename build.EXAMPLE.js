@@ -12,12 +12,12 @@
     global.modulePath = __dirname + "/node_modules/";
 
     try {
-        require("../node.js_build/funcs1");
+        require("../node.js_Build/funcs");
     } catch (e) {
         if (e.code !== 'MODULE_NOT_FOUND') {
             throw e;
         }
-        console.error("Build script is missing. Please download from ");
+        console.error("Build script is missing. Please download from https://github.com/Kiuryy/node.js_Build");
         process.exit(1);
     }
 
