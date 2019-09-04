@@ -376,7 +376,13 @@
                             case "js": {
                                 const result = module.terser.minify(content, {
                                     output: {
-                                        preamble: "/*! (c) " + process.env.npm_package_author_name + " under " + process.env.npm_package_license + " */"
+                                        preamble: (() => {
+                                            let h = "(c) " + process.env.npm_package_author_name;
+                                            if (process.env.npm_package_license) {
+                                                h += " under " + process.env.npm_package_license;
+                                            }
+                                            return "/*! " + h + " */";
+                                        })()
                                     },
                                     mangle: {
                                         reserved: ["jsu", "chrome"]
