@@ -108,12 +108,14 @@
                     const proceed = (i = 0) => { // will be called once the previous minify process is done -> important to keep the correct order
                         if (matches[i]) {
                             const info = {
-                                file: matches[i],
-                                fileName: matches[i].replace(new RegExp("^(" + path.src + "|" + path.tmp + ")", "i"), "")
+                                absPath: matches[i],
+                                parsedPath: matches[i].replace(new RegExp("^(" + path.src + "|" + path.tmp + ")", "i"), "")
                             };
 
+                            info.fileName = info.parsedPath.split(/\//).pop();
+
                             if (flatten) {
-                                info.fileName = info.fileName.split(/\//).pop();
+                                info.parsedPath = info.fileName;
                             }
 
                             if (info.fileName.search(/\./) > -1) { // only proceed files
@@ -311,8 +313,8 @@
             return new Promise((resolve) => {
                 find(exclude).then((exludeList) => {
                     return proceedFiles(files, flatten, (info, rslv) => {
-                        if (exludeList.indexOf(info.file) === -1) { // not excluded -> copy file
-                            module.copy(info.file, dest + info.fileName).then(() => {
+                        if (exludeList.indexOf(info.absPath) === -1) { // not excluded -> copy file
+                            module.copy(info.absPath, dest + info.parsedPath).then(() => {
                                 rslv();
                             });
                         } else { // excluded -> don't copy
@@ -358,58 +360,67 @@
         this.minify = (files, dest, flatten = true) => {
             return new Promise((resolve) => {
                 proceedFiles(files, flatten, (info, rslv) => {
-                    readFile(info.file).then((content) => { // read file
-                        switch (info.ext) {
-                            case "html": {
-                                content = module.minifyHtml(content, { // minify content
-                                    collapseWhitespace: true,
-                                    removeComments: true,
-                                    keepClosingSlash: true,
-                                    minifyCSS: true
-                                });
-                                break;
-                            }
-                            case "json": {
-                                content = module.minifyJson(content);
-                                break;
-                            }
-                            case "js": {
-                                const result = module.terser.minify(content, {
-                                    output: {
-                                        preamble: (() => {
-                                            let h = "(c) " + process.env.npm_package_author_name;
-                                            if (process.env.npm_package_license) {
-                                                h += " under " + process.env.npm_package_license;
-                                            }
-                                            return "/*! " + h + " */";
-                                        })()
-                                    },
-                                    mangle: {
-                                        reserved: ["jsu", "chrome"]
-                                    }
-                                });
-                                if (result.error) {
-                                    throw result.error;
-                                }
-                                content = result.code;
-                                break;
-                            }
-                            case "scss": {
-                                const result = module.sass.renderSync({
-                                    data: content,
-                                    outputStyle: "compressed",
-                                    includePaths: [path.src + "scss", path.assets + "scss"]
-                                });
-                                content = result.css;
-                                info.fileName = info.fileName.replace(/\.scss$/, ".css");
-                                break;
-                            }
-                        }
+                    if (info.ext === "scss") { // minify by filename
+                        if (info.fileName.startsWith("_")) {
+                            rslv();
+                        } else {
+                            const result = module.sass.renderSync({
+                                file: info.absPath,
+                                outFile: info.absPath.replace(/\.scss$/, ".css"),
+                                outputStyle: "compressed",
+                                includePaths: [path.src + "scss", path.assets + "scss"]
+                            });
 
-                        return this.createFile(dest + info.fileName, content); // save file in the output directory
-                    }).then(() => {
-                        rslv();
-                    });
+                            info.parsedPath = info.parsedPath.replace(/^scss\//, "css/").replace(/\.scss$/, ".css");
+
+                            this.createFile(dest + info.parsedPath, result.css).then(() => { // save file in the output directory
+                                rslv();
+                            });
+                        }
+                    } else { // read file and minify the retrieved content
+                        readFile(info.absPath).then((content) => {
+                            switch (info.ext) {
+                                case "html": {
+                                    content = module.minifyHtml(content, { // minify content
+                                        collapseWhitespace: true,
+                                        removeComments: true,
+                                        keepClosingSlash: true,
+                                        minifyCSS: true
+                                    });
+                                    break;
+                                }
+                                case "json": {
+                                    content = module.minifyJson(content);
+                                    break;
+                                }
+                                case "js": {
+                                    const result = module.terser.minify(content, {
+                                        output: {
+                                            preamble: (() => {
+                                                let h = "(c) " + process.env.npm_package_author_name;
+                                                if (process.env.npm_package_license) {
+                                                    h += " under " + process.env.npm_package_license;
+                                                }
+                                                return "/*! " + h + " */";
+                                            })()
+                                        },
+                                        mangle: {
+                                            reserved: ["jsu", "chrome"]
+                                        }
+                                    });
+                                    if (result.error) {
+                                        throw result.error;
+                                    }
+                                    content = result.code;
+                                    break;
+                                }
+                            }
+
+                            return this.createFile(dest + info.parsedPath, content); // save file in the output directory
+                        }).then(() => {
+                            rslv();
+                        });
+                    }
                 }).then(() => {
                     resolve();
                 });
