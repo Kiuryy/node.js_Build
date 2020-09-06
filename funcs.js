@@ -378,7 +378,7 @@
                             });
                         }
                     } else { // read file and minify the retrieved content
-                        readFile(info.absPath).then((content) => {
+                        readFile(info.absPath).then(async (content) => {
                             switch (info.ext) {
                                 case "html": {
                                     content = module.minifyHtml(content, { // minify content
@@ -394,7 +394,7 @@
                                     break;
                                 }
                                 case "js": {
-                                    const result = module.terser.minify(content, {
+                                    const result = await module.terser.minify(content, {
                                         output: {
                                             preamble: (() => {
                                                 let h = "(c) " + process.env.npm_package_author_name;
