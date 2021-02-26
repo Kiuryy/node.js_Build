@@ -21,7 +21,11 @@
         process.exit(1);
     }
 
-    // SCSS Filewatcher -> <PATH_TO_node>/npm.cmd run scss
+    /**
+     *
+     * @type {Object}
+     */
+    let packageJson = {};
 
     /**
      * Starts building the application
@@ -30,7 +34,9 @@
         const start = +new Date();
         console.log("Building release...\n");
 
-        Func.cleanPre().then(() => {
+        loadPackageJson().then(() => {
+            return Func.cleanPre();
+        }).then(() => {
             return eslintCheck();
         }).then(() => {
             return remoteJs();
@@ -58,6 +64,29 @@
      * BUILD FUNCTIONS
      * ################################
      */
+
+    /**
+     * Read the package.json of the project and parse its JSON content into an object
+     *
+     * @returns {*}
+     */
+    const loadPackageJson = () => {
+        return Func.measureTime((resolve) => {
+            const fs = require("fs");
+
+            const rawData = fs.readFileSync("package.json");
+            const parsedData = JSON.parse(rawData);
+
+            if (parsedData) {
+                packageJson = parsedData;
+                packageJson.preamble = `(c) ${packageJson.author} under ${packageJson.license}`;
+                resolve();
+            } else {
+                console.error("Could not load package.json");
+                process.exit(1);
+            }
+        }, "Loaded package.json");
+    };
 
     /**
      * Copies the images to the dist directory
@@ -162,7 +191,7 @@
      */
     const zip = () => {
         return Func.measureTime((resolve) => {
-            Func.zipDirectory(path.dist, process.env.npm_package_name + "_" + process.env.npm_package_version + ".zip").then(resolve);
+            Func.zipDirectory(path.dist, packageJson.name + "_" + packageJson.versionName + ".zip").then(resolve);
         }, "Created zip file from dist directory");
     };
 

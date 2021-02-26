@@ -355,9 +355,10 @@
          * @param {Array} files
          * @param {string} dest
          * @param {boolean} flatten ignore the path of the given files and put them directly into the destination
+         * @param {string} preamble for css and js files
          * @returns {Promise}
          */
-        this.minify = (files, dest, flatten = true) => {
+        this.minify = (files, dest, flatten = true, preamble) => {
             return new Promise((resolve) => {
                 proceedFiles(files, flatten, (info, rslv) => {
                     if (info.ext === "scss") { // minify by filename
@@ -373,7 +374,12 @@
 
                             info.parsedPath = info.parsedPath.replace(/^scss\//, "css/").replace(/\.scss$/, ".css");
 
-                            this.createFile(dest + info.parsedPath, result.css).then(() => { // save file in the output directory
+                            let content = result.css;
+                            if (preamble) {
+                                content = `/*! ${preamble} */\n` + content;
+                            }
+
+                            this.createFile(dest + info.parsedPath, content).then(() => { // save file in the output directory
                                 rslv();
                             });
                         }
@@ -397,11 +403,10 @@
                                     const result = await module.terser.minify(content, {
                                         output: {
                                             preamble: (() => {
-                                                let h = "(c) " + process.env.npm_package_author_name;
-                                                if (process.env.npm_package_license) {
-                                                    h += " under " + process.env.npm_package_license;
+                                                if (preamble) {
+                                                    return `/*! ${preamble} */`;
                                                 }
-                                                return "/*! " + h + " */";
+                                                return null;
                                             })()
                                         },
                                         mangle: {
